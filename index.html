@@ -341,25 +341,48 @@
                 'TP10'  // Right ear
             ];
 
+            // Function to generate detailed 1/f reference line
+            function generateOneOverFReference(frequencies) {
+                return frequencies.map(freq => {
+                    if (freq === 0) return 30; // Avoid division by zero
+                    return 30 / freq; // Scale to match our y-axis range
+                });
+            }
+
             psdChart = new Chart(psdCtx, {
                 type: 'line',
                 data: {
                     labels: [],
-                    datasets: channelColors.map((color, index) => ({
-                        label: channelLabels[index],
-                        data: [],
-                        borderColor: color,
-                        backgroundColor: color.replace('1)', '0.2)'),
-                        fill: false,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 0,
-                        borderWidth: 1.5,
-                        stepped: false,
-                        segment: {
-                            borderColor: ctx => ctx.p0.parsed.y === ctx.p1.parsed.y ? 'transparent' : undefined,
+                    datasets: [
+                        ...channelColors.map((color, index) => ({
+                            label: channelLabels[index],
+                            data: [],
+                            borderColor: color,
+                            backgroundColor: color.replace('1)', '0.2)'),
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            borderWidth: 1.5,
+                            stepped: false,
+                            segment: {
+                                borderColor: ctx => ctx.p0.parsed.y === ctx.p1.parsed.y ? 'transparent' : undefined,
+                            }
+                        })),
+                        {
+                            label: '1/f Reference',
+                            data: [],
+                            borderColor: 'rgba(0, 0, 0, 1)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                            fill: false,
+                            tension: 0,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            borderWidth: 1,
+                            stepped: false,
+                            order: 5
                         }
-                    }))
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -467,8 +490,8 @@
                     return null;
                 }
                 
-                // Pad data to next power of 2 if necessary
-                const nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(rawData.length)));
+                // Pad data to next power of 2 if necessary, but multiply by 8 for maximum resolution
+                const nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(rawData.length * 8)));
                 const paddedData = new Float32Array(nextPowerOf2);
                 paddedData.set(rawData);
                 
@@ -526,7 +549,7 @@
                 });
                 // console.log('PSD first few values:', psd.slice(0, 5));
                 
-                // Calculate frequency bins
+                // Calculate frequency bins with doubled resolution
                 const frequencies = psd.map((_, i) => i * samplingRate / paddedData.length);
                 
                 // Filter out frequencies above 60 Hz
@@ -632,6 +655,10 @@
                             });
                         }
                     });
+
+                    // Update 1/f reference line with the same frequencies as the data
+                    const referenceLine = generateOneOverFReference(channelData[0].frequencies);
+                    psdChart.data.datasets[CHANNELS_PER_SAMPLE].data = referenceLine;
                     
                     // Update title with sample number
                     psdChart.options.plugins.title.text = `Real-time Power Spectral Density (Sample ${currentSampleIndex + 1}/${Math.floor(currentSamples.length / CHANNELS_PER_SAMPLE)})`;
